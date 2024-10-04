@@ -1,112 +1,139 @@
-require('dotenv').config();
+require("dotenv").config();
 
-const express = require('express');
+const express = require("express");
 const app = express();
-const { sql } = require('@vercel/postgres');
+const router = express.Router();
+const path = require("path");
+const jsdom = require("jsdom");
+const { JSDOM } = jsdom;
+const axios = require("axios");
 
-const bodyParser = require('body-parser');
-const path = require('path');
+// Existing utility functions
+function strip(string) {
+  return string.replace(/^\s+|\s+$/g, "");
+}
 
-// Create application/x-www-form-urlencoded parser
-const urlencodedParser = bodyParser.urlencoded({ extended: false });
+async function getDom(url) {
+  return axios.get(url).then((res) => {
+    const dom = new JSDOM(res.data);
+    return dom.window.document;
+  });
+}
+// get ac solutions for each contestant
+const getAc = async (url) => {
+  try {
+    const dom = await getDom(url);
+    let standing = dom.querySelector(".standings");
+    let problemsA = standing.rows[0].querySelectorAll("a");
 
-app.use(express.static('public'));
+    let problems = [];
+    for (let problem of problemsA) {
+      problems.push({
+        name: problem.title,
+        link: "https://codeforces.com" + problem.href,
+      });
+    }
 
-app.get('/', function (req, res) {
-	res.sendFile(path.join(__dirname, '..', 'components', 'home.htm'));
+    let sheetNameA = dom.querySelector(".contest-name").querySelector("a");
+    let contest = {
+      name: strip(sheetNameA.textContent),
+      link: "https://codeforces.com" + sheetNameA.href,
+      problems: problems,
+    };
+
+    let data = {};
+    for (let i = 1; i < standing.rows.length - 1; i++) {
+      let team = "Not a team",
+        contestants = [];
+      let tr = standing.rows[i].querySelectorAll("td"),
+        isTeam = true;
+      try {
+        trA = tr[1].querySelector("span").querySelectorAll("a");
+        if (!trA.length) isTeam = false;
+      } catch {
+        isTeam = false;
+      }
+      if (isTeam && trA[0].href.includes("team")) {
+        // it's a team
+        team = trA[0]["title"];
+        for (let k = 1; k < trA.length; k++) {
+          tmp = trA[k].title.split(" ");
+          contestants.push(tmp[tmp.length - 1]);
+        }
+      } else {
+        // it's a contestant
+        tmp = tr[1].querySelector("a").title.split(" ");
+        contestants.push(tmp[tmp.length - 1]);
+      }
+
+      let tds = standing.rows[i].querySelectorAll("td");
+      for (let i = 4; i < tds.length; i++) {
+        let txt = strip(tds[i].querySelector("span").textContent) || "-";
+        if (txt[0] == "-") continue;
+        for (let j = 0; j < contestants.length; j++) {
+          if (!(contestants[j] in data)) {
+            // new contestant to the data
+            data[contestants[j]] = [];
+          }
+          let pNum = problems[i - 4].name.split(" - ")[0];
+          if (!data[contestants[j]].includes(pNum))
+            data[contestants[j]].push(pNum);
+        }
+      }
+    }
+
+    let keys = Object.keys(data);
+    keys.forEach(async (key) => {
+      data[key] = {
+        ac: data[key].join("-"),
+      };
+    });
+
+    return {
+      status: "OK",
+      result: {
+        contest: contest,
+        contestants: data,
+      },
+    };
+  } catch (err) {
+    return {
+      status: "FAILED",
+      result: "There is something wrong :(",
+      err: err.message,
+    };
+  }
+};
+// Update routes to use router
+router.get("/g/:groupId/c/:contestId/p/:page", async (req, res) => {
+  let { groupId, contestId, page } = req.params;
+  url = `https://codeforces.com/group/${groupId}/contest/${contestId}/standings/page/${page}?showUnofficial=true`;
+  let ret = await getAc(url);
+  res.status(200).json(ret);
 });
 
-app.get('/about', function (req, res) {
-	res.sendFile(path.join(__dirname, '..', 'components', 'about.htm'));
+router.get("/g/:groupId/c/:contestId/p/:page/l/:listId", async (req, res) => {
+  let { groupId, contestId, listId, page } = req.params;
+  url = `https://codeforces.com/group/${groupId}/contest/${contestId}/standings/page/${page}?list=${listId}&showUnofficial=true`;
+  let ret = await getAc(url);
+  res.status(200).json(ret);
 });
 
-app.get('/uploadUser', function (req, res) {
-	res.sendFile(path.join(__dirname, '..', 'components', 'user_upload_form.htm'));
+// Use the router
+app.use("/ac", router);
+
+// Serve static files from the 'public' directory
+app.use(express.static("public"));
+
+// Handle root route
+app.get("/", (req, res) => res.send("Express on Vercel"));
+
+// Handle 404 errors
+app.use((req, res) => {
+  res.status(404).sendFile(path.join(__dirname, "public", "error.html"));
 });
 
-app.post('/uploadSuccessful', urlencodedParser, async (req, res) => {
-	try {
-		await sql`INSERT INTO Users (Id, Name, Email) VALUES (${req.body.user_id}, ${req.body.name}, ${req.body.email});`;
-		res.status(200).send('<h1>User added successfully</h1>');
-	} catch (error) {
-		console.error(error);
-		res.status(500).send('Error adding user');
-	}
-});
+app.listen(3000, () => console.log("Server ready on port 3000."));
 
-app.get('/allUsers', async (req, res) => {
-	try {
-		const users = await sql`SELECT * FROM Users;`;
-		if (users && users.rows.length > 0) {
-			let tableContent = users.rows
-				.map(
-					(user) =>
-						`<tr>
-                        <td>${user.id}</td>
-                        <td>${user.name}</td>
-                        <td>${user.email}</td>
-                    </tr>`
-				)
-				.join('');
-
-			res.status(200).send(`
-                <html>
-                    <head>
-                        <title>Users</title>
-                        <style>
-                            body {
-                                font-family: Arial, sans-serif;
-                            }
-                            table {
-                                width: 100%;
-                                border-collapse: collapse;
-                                margin-bottom: 15px;
-                            }
-                            th, td {
-                                border: 1px solid #ddd;
-                                padding: 8px;
-                                text-align: left;
-                            }
-                            th {
-                                background-color: #f2f2f2;
-                            }
-                            a {
-                                text-decoration: none;
-                                color: #0a16f7;
-                                margin: 15px;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <h1>Users</h1>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>User ID</th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${tableContent}
-                            </tbody>
-                        </table>
-                        <div>
-                            <a href="/">Home</a>
-                            <a href="/uploadUser">Add User</a>
-                        </div>
-                    </body>
-                </html>
-            `);
-		} else {
-			res.status(404).send('Users not found');
-		}
-	} catch (error) {
-		console.error(error);
-		res.status(500).send('Error retrieving users');
-	}
-});
-
-app.listen(3000, () => console.log('Server ready on port 3000.'));
-
+// Export the Express API
 module.exports = app;
