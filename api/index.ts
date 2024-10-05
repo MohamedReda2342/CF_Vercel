@@ -14,10 +14,17 @@ function strip(string) {
 }
 
 async function getDom(url) {
-  return axios.get(url).then((res) => {
-    const dom = new JSDOM(res.data);
-    return dom.window.document;
-  });
+  return axios
+    .get(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+      },
+    })
+    .then((res) => {
+      const dom = new JSDOM(res.data);
+      return dom.window.document;
+    });
 }
 // get ac solutions for each contestant
 const getAc = async (url) => {
@@ -97,10 +104,23 @@ const getAc = async (url) => {
       },
     };
   } catch (err) {
+    console.error("Error in getAc:", err);
+    console.error("Error details:", {
+      message: err.message,
+      stack: err.stack,
+      url: url,
+      responseData: err.response ? err.response.data : "No response data",
+      responseHeaders: err.response
+        ? err.response.headers
+        : "No response headers",
+    });
     return {
       status: "FAILED",
       result: "There is something wrong :(",
       err: err.message,
+      details: err.response
+        ? err.response.data
+        : "No additional details available",
     };
   }
 };
