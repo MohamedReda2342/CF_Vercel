@@ -38,7 +38,7 @@ const getAc = async(url) => {
         const dom = await getDom(url);
         let standing = dom.querySelector('.standings');
         let problemsA = standing.rows[0].querySelectorAll('a');
-
+console.log("Hello world!");
         let problems = [];
         for (let problem of problemsA){
             problems.push({
