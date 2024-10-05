@@ -105,14 +105,14 @@ const getAc = async (url) => {
   }
 };
 // Update routes to use router
-app.get("/g/:groupId/c/:contestId/p/:page", async (req, res) => {
+router.get("/g/:groupId/c/:contestId/p/:page", async (req, res) => {
   let { groupId, contestId, page } = req.params;
   url = `https://codeforces.com/group/${groupId}/contest/${contestId}/standings/page/${page}?showUnofficial=true`;
   let ret = await getAc(url);
   res.status(200).json(ret);
 });
 
-app.get("/g/:groupId/c/:contestId/p/:page/l/:listId", async (req, res) => {
+router.get("/g/:groupId/c/:contestId/p/:page/l/:listId", async (req, res) => {
   let { groupId, contestId, listId, page } = req.params;
   url = `https://codeforces.com/group/${groupId}/contest/${contestId}/standings/page/${page}?list=${listId}&showUnofficial=true`;
   let ret = await getAc(url);
@@ -120,7 +120,7 @@ app.get("/g/:groupId/c/:contestId/p/:page/l/:listId", async (req, res) => {
 });
 
 // Use the router
-app.use("/ac", app);
+app.use("/ac", router);
 
 // Serve static files from the 'public' directory
 app.use(express.static("public"));
