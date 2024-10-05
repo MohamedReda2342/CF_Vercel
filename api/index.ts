@@ -13,16 +13,12 @@ function strip(string) {
   return string.replace(/^\s+|\s+$/g, "");
 }
 
-const puppeteer = require('puppeteer');
-
-   async function getDom(url) {
-     const browser = await puppeteer.launch();
-     const page = await browser.newPage();
-     await page.goto(url, {waitUntil: 'networkidle0'});
-     const content = await page.content();
-     await browser.close();
-     return new JSDOM(content).window.document;
-   }
+async function getDom(url) {
+  return axios.get(url).then((res) => {
+    const dom = new JSDOM(res.data);
+    return dom.window.document;
+  });
+}
 // get ac solutions for each contestant
 const getAc = async (url) => {
   try {
@@ -101,23 +97,10 @@ const getAc = async (url) => {
       },
     };
   } catch (err) {
-    console.error("Error in getAc:", err);
-    console.error("Error details:", {
-      message: err.message,
-      stack: err.stack,
-      url: url,
-      responseData: err.response ? err.response.data : "No response data",
-      responseHeaders: err.response
-        ? err.response.headers
-        : "No response headers",
-    });
     return {
       status: "FAILED",
       result: "There is something wrong :(",
       err: err.message,
-      details: err.response
-        ? err.response.data
-        : "No additional details available",
     };
   }
 };
