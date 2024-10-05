@@ -13,19 +13,16 @@ function strip(string) {
   return string.replace(/^\s+|\s+$/g, "");
 }
 
-async function getDom(url) {
-  return axios
-    .get(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-      },
-    })
-    .then((res) => {
-      const dom = new JSDOM(res.data);
-      return dom.window.document;
-    });
-}
+const puppeteer = require('puppeteer');
+
+   async function getDom(url) {
+     const browser = await puppeteer.launch();
+     const page = await browser.newPage();
+     await page.goto(url, {waitUntil: 'networkidle0'});
+     const content = await page.content();
+     await browser.close();
+     return new JSDOM(content).window.document;
+   }
 // get ac solutions for each contestant
 const getAc = async (url) => {
   try {
